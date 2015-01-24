@@ -18,8 +18,104 @@ var Strategy = function (options) {
 _.extend(Strategy.prototype, Hoard.Events, {
   initialize: function () {},
 
+  // Set up some configuration, and pass control to this strategy's sync method
+  // Take care of all caching/server requesting.
+  // This is the main strategy method and entry point from Hoard.Control
   execute: function (model, options) {
-    throw new Error("Strategy#execute must be implemented");
+    options.url = this.policy.getUrl(model, this.method, options);
+    options.collection = this.policy.getCollection(model, options);
+    options.model = model;
+    return this.sync(model, options);
+  },
+
+  // If the model belongs to a collection and that collection is cached,
+  //   first try to read the model from the collection's cache
+  // Default to getting it from the model's cache
+  get: function (key, options) {
+    var updateCollection = this._getUpdateCollection(options);
+    var getFromCache = _.bind(this.store.get, this.store, key, options);
+    if (updateCollection) {
+      return updateCollection().then(
+        function (collection) {
+          var modelResponse = collection.policy.findSameModel(collection.raw, options.model);
+          return modelResponse ? modelResponse : getFromCache();
+        },
+        getFromCache
+      );
+    } else {
+      return getFromCache();
+    }
+  },
+
+  // If the model belongs to a collection and that collection is cached,
+  //   add the model to the collection's cache
+  // Default to setting the model the model's cache
+  set: function (key, value, meta, options) {
+    var updateCollection = this._getUpdateCollection(options);
+    var setToCache = _.bind(this.store.set, this.store, key, value, meta, options);
+    if (updateCollection) {
+      return updateCollection().then(
+        function (collection) {
+          var modelResponse = collection.policy.findSameModel(collection.raw, options.model);
+          if (!modelResponse) {
+            modelResponse = {};
+            collection.raw.push(modelResponse);
+          }
+          // clear the existing model and replace it with the response
+          _.each(_.keys(modelResponse), function (key) {
+            delete modelResponse[key];
+          });
+          _.extend(modelResponse, value);
+          meta = collection.control.policy.getMetadata(collection.key, collection.raw, options);
+          return collection.control.store.set(collection.key, collection.raw, meta, options);
+        },
+        setToCache
+      );
+    } else {
+      return setToCache();
+    }
+  },
+
+  // If the model belongs to a collection and that collection is cached,
+  //   remove the model from the collection's cache
+  // Default to removing the model the model's cache
+  invalidate: function (key, options) {
+    var updateCollection = this._getUpdateCollection(options);
+    var invalidateFromCache = _.bind(this.store.invalidate, this.store, key, options);
+    if (updateCollection) {
+      return updateCollection().then(
+        function (collection) {
+          var filteredCollection = _.reject(collection.raw, function (model) {
+            return collection.policy.areModelsSame(options.model, model);
+          });
+          var meta = collection.control.policy.getMetadata(collection.key, filteredCollection, options);
+          return collection.control.store.set(collection.key, filteredCollection, meta, options);
+        },
+        invalidateFromCache
+      );
+    } else {
+      return invalidateFromCache();
+    }
+  },
+
+  // Return a funtion that accesses the model's collection, if it exists
+  // Otherwise, return undefined, becasues the collection cannot be accessed
+  _getUpdateCollection: function (options) {
+    var collection = options && options.collection;
+    var collectionControl = collection && collection.sync && collection.sync.hoardControl;
+    if (collection && collectionControl) {
+      var collectionKey = collectionControl.policy.getKey(collection, options);
+      return _.bind(function () {
+        return this.store.get(collectionKey, options).then(function (rawCollection) {
+          return {
+            control: collectionControl,
+            policy: collectionControl.policy,
+            key: collectionKey,
+            raw: rawCollection
+          };
+        });
+      }, this);
+    }
   },
 
   //When the cache is full, evict items from the cache
@@ -38,7 +134,7 @@ _.extend(Strategy.prototype, Hoard.Events, {
         var keysToEvict = this.policy.getKeysToEvict(metadata, key, value, error);
         if (!_.isEmpty(keysToEvict)) {
           var evictions = _.map(keysToEvict, function (key) {
-            return this.store.invalidate(key, options);
+            return this.invalidate(key, options);
           }, this);
           return Hoard.Promise.all(evictions);
         } else {
@@ -46,9 +142,15 @@ _.extend(Strategy.prototype, Hoard.Events, {
         }
       }, this));
     }, this)).then(
-      _.bind(this.store.set, this.store, key, value, meta, options),
+      _.bind(this.set, this, key, value, meta, options),
       function () { return Hoard.Promise.reject(value); }
     );
+  },
+
+  // Override to edit the response
+  // Returns the same response by default
+  decorateResponse: function (response, options) {
+    return response;
   },
 
   // Cache the response when the success callback is called
@@ -83,7 +185,7 @@ _.extend(Strategy.prototype, Hoard.Events, {
   },
 
   _invalidateResponse: function (key, response, options) {
-    this.store.invalidate(key).then(
+    this.invalidate(key).then(
       this._storeAction('onStoreSuccess', options, response),
       this._storeAction('onStoreError', options, response)
     );
@@ -91,8 +193,8 @@ _.extend(Strategy.prototype, Hoard.Events, {
 
   _storeResponse: function (key, response, options) {
     var meta = this.policy.getMetadata(key, response, options);
-    var finalResponse = _.extend({}, options.original, response);
-    this.store.set(key, finalResponse, meta).then(
+    var finalResponse = this.decorateResponse(response, options);
+    this.set(key, finalResponse, meta, options).then(
       _.identity,
       _.bind(this.onCacheFull, this)
     ).then(
@@ -103,7 +205,9 @@ _.extend(Strategy.prototype, Hoard.Events, {
 
   _storeAction: function (method, options, response) {
     var callback = options[method] || function () { return response };
-    return function () { return callback(response); }
+    return function () {
+      return callback(response);
+    }
   }
 });
 

@@ -8,9 +8,16 @@ describe("Writing", function () {
   beforeEach(function () {
     this.control = new Hoard.Control();
     this.urlRoot = '/models';
+    this.sync = this.control.getModelSync();
     this.Model = Backbone.Model.extend({
       urlRoot: this.urlRoot,
-      sync: this.control.getModelSync()
+      sync: this.sync
+    });
+
+    this.collectionKey = '/collection';
+    this.Collection = Backbone.Collection.extend({
+      url: this.collectionKey,
+      sync: this.sync
     });
 
     //NOTE: This server setup demonstrates a case where you should not use Hoard,
@@ -31,26 +38,47 @@ describe("Writing", function () {
         _.extend(model, { id: model.value });
         xhr.respond(201, { 'Content-Type': 'application/json' }, JSON.stringify(model));
       }.bind(this));
-
-      return this.model.save();
     });
 
-    it("populates the model with the response", function () {
-      expect(this.model.get('id')).to.equal(1);
-      expect(this.model.get('value')).to.equal(1);
+    describe("for a standalone model", function () {
+      beforeEach(function () {
+        return this.model.save();
+      });
+
+      it("populates the model with the response", function () {
+        expect(this.model.get('id')).to.equal(1);
+        expect(this.model.get('value')).to.equal(1);
+      });
+
+      it("populates the cache", function () {
+        return expect(this.control.store.get('/models/1')).to.eventually.eql({ id: 1, value: 1 });
+      });
+
+      it("allows future fetches to read from the cache", function () {
+        var model2 = new this.Model({id: 1});
+        return model2.fetch().then(function () {
+          expect(model2.get('id')).to.equal(1);
+          expect(model2.get('value')).to.equal(1);
+          expect(this.requests['GET:/models/1']).to.be.undefined;
+        }.bind(this));
+      });
     });
 
-    it("populates the cache", function () {
-      return expect(this.control.store.get('/models/1')).to.eventually.eql({ id: 1, value: 1 });
-    });
+    describe("for a model in a collection", function () {
+      beforeEach(function () {
+        this.collection = new this.Collection(this.model);
+        this.initialData = [];
+        return this.control.store.set(this.collectionKey, this.initialData).then(function () {
+          return this.model.save();
+        }.bind(this));
+      });
 
-    it("allows future fetches to read from the cache", function () {
-      var model2 = new this.Model({id: 1});
-      return model2.fetch().then(function () {
-        expect(model2.get('id')).to.equal(1);
-        expect(model2.get('value')).to.equal(1);
-        expect(this.requests['GET:/models/1']).to.be.undefined;
-      }.bind(this));
+      it("updates the model in the collection", function () {
+        var collection = new this.Collection();
+        return collection.fetch().then(function () {
+          expect(collection.toJSON()).to.deep.eql([{ id: 1, value: 1 }]);
+        });
+      });
     });
   });
 
@@ -64,31 +92,57 @@ describe("Writing", function () {
       }.bind(this));
 
       this.model.set('id', 1);
-      return this.model.save();
     });
 
-    it("populates the model with the response", function () {
-      expect(this.model.get('id')).to.equal(1);
-      expect(this.model.get('value')).to.equal(1);
-      expect(this.model.get('updated')).to.be.true;
-    });
+    describe("for a standalone model", function () {
+      beforeEach(function () {
+        return this.model.save();
+      });
 
-    it("populates the cache", function () {
-      return expect(this.control.store.get('/models/1')).to.eventually.eql({
-        id: 1,
-        value: 1,
-        updated: true
+      it("populates the model with the response", function () {
+        expect(this.model.get('id')).to.equal(1);
+        expect(this.model.get('value')).to.equal(1);
+        expect(this.model.get('updated')).to.be.true;
+      });
+
+      it("populates the cache", function () {
+        return expect(this.control.store.get('/models/1')).to.eventually.eql({
+          id: 1,
+          value: 1,
+          updated: true
+        });
+      });
+
+      it("allows future fetches to read from the cache", function () {
+        var model2 = new this.Model({id: 1});
+        return model2.fetch().then(function () {
+          expect(model2.get('id')).to.equal(1);
+          expect(model2.get('value')).to.equal(1);
+          expect(model2.get('updated')).to.be.true;
+          expect(this.requests['GET:/models/1']).to.be.undefined;
+        }.bind(this));
       });
     });
 
-    it("allows future fetches to read from the cache", function () {
-      var model2 = new this.Model({id: 1});
-      return model2.fetch().then(function () {
-        expect(model2.get('id')).to.equal(1);
-        expect(model2.get('value')).to.equal(1);
-        expect(model2.get('updated')).to.be.true;
-        expect(this.requests['GET:/models/1']).to.be.undefined;
-      }.bind(this));
+    describe("for a model in a collection", function () {
+      beforeEach(function () {
+        this.collection = new this.Collection(this.model);
+        this.initialData = [{ id: 1 }];
+        return this.control.store.set(this.collectionKey, this.initialData).then(function () {
+          return this.model.save();
+        }.bind(this));
+      });
+
+      it("updates the model in the collection", function () {
+        var collection = new this.Collection();
+        return collection.fetch().then(function () {
+          expect(collection.toJSON()).to.deep.eql([{
+            id: 1,
+            value: 1,
+            updated: true
+          }]);
+        });
+      });
     });
   });
 
@@ -102,31 +156,57 @@ describe("Writing", function () {
       }.bind(this));
 
       this.model.set('id', 1);
-      return this.model.save({}, { patch: true });
     });
 
-    it("populates the model with the response", function () {
-      expect(this.model.get('id')).to.equal(1);
-      expect(this.model.get('value')).to.equal(1);
-      expect(this.model.get('patched')).to.be.true;
-    });
+    describe("for a standalone model", function () {
+      beforeEach(function () {
+        return this.model.save({}, { patch: true });
+      });
 
-    it("populates the cache", function () {
-      return expect(this.control.store.get('/models/1')).to.eventually.eql({
-        id: 1,
-        value: 1,
-        patched: true
+      it("populates the model with the response", function () {
+        expect(this.model.get('id')).to.equal(1);
+        expect(this.model.get('value')).to.equal(1);
+        expect(this.model.get('patched')).to.be.true;
+      });
+
+      it("populates the cache", function () {
+        return expect(this.control.store.get('/models/1')).to.eventually.eql({
+          id: 1,
+          value: 1,
+          patched: true
+        });
+      });
+
+      it("allows future fetches to read from the cache", function () {
+        var model2 = new this.Model({id: 1});
+        return model2.fetch().then(function () {
+          expect(model2.get('id')).to.equal(1);
+          expect(model2.get('value')).to.equal(1);
+          expect(model2.get('patched')).to.be.true;
+          expect(this.requests['GET:/models/1']).to.be.undefined;
+        }.bind(this));
       });
     });
 
-    it("allows future fetches to read from the cache", function () {
-      var model2 = new this.Model({id: 1});
-      return model2.fetch().then(function () {
-        expect(model2.get('id')).to.equal(1);
-        expect(model2.get('value')).to.equal(1);
-        expect(model2.get('patched')).to.be.true;
-        expect(this.requests['GET:/models/1']).to.be.undefined;
-      }.bind(this));
+    describe("for a model in a collection", function () {
+      beforeEach(function () {
+        this.collection = new this.Collection(this.model);
+        this.initialData = [{ id: 1 }];
+        return this.control.store.set(this.collectionKey, this.initialData).then(function () {
+          return this.model.save({}, { patch: true });
+        }.bind(this));
+      });
+
+      it("updates the model in the collection", function () {
+        var collection = new this.Collection();
+        return collection.fetch().then(function () {
+          expect(collection.toJSON()).to.deep.eql([{
+            id: 1,
+            value: 1,
+            patched: true
+          }]);
+        });
+      });
     });
   });
 
@@ -137,23 +217,43 @@ describe("Writing", function () {
         xhr.respond(200, { 'Content-Type': 'application/json' }, JSON.stringify({}));
       }.bind(this));
 
-      var setDeferred = Hoard.defer();
-      this.storePromise = setDeferred.promise;
       this.model.set('id', 1);
-      return this.control.store.set('/models/1', { deleted: false }).then(function () {
-        return this.model.destroy();
-      }.bind(this));
     });
 
-    it("clears the cache", function () {
-      return expect(this.control.store.get('/models/1')).to.be.rejected;
+    describe("for a standalone model", function () {
+      beforeEach(function () {
+        return this.control.store.set('/models/1', { deleted: false }).then(function () {
+          return this.model.destroy();
+        }.bind(this));
+      });
+
+      it("clears the cache", function () {
+        return expect(this.control.store.get('/models/1')).to.be.rejected;
+      });
+
+      it("sends new fetches to the server", function () {
+        var model2 = new this.Model({id: 1});
+        return model2.fetch().then(function () {
+          expect(model2.toJSON()).to.deep.eql({id: -1, value: -1 });
+        }.bind(this));
+      });
     });
 
-    it("sends new fetches to the server", function () {
-      var model2 = new this.Model({id: 1});
-      return model2.fetch().then(function () {
-        expect(model2.toJSON()).to.deep.eql({id: -1, value: -1 });
-      }.bind(this));
+    describe("for a model in a collection", function () {
+      beforeEach(function () {
+        this.collection = new this.Collection(this.model);
+        this.initialData = [{ id: 0 }, { id: 1 }, { id: 2 }];
+        return this.control.store.set(this.collectionKey, this.initialData).then(function () {
+          return this.model.destroy();
+        }.bind(this));
+      });
+
+      it("clears the model from the cached collection", function () {
+        var collection = new this.Collection();
+        return collection.fetch().then(function () {
+          expect(collection.toJSON()).to.deep.eql([{ id: 0 }, { id: 2 }]);
+        });
+      });
     });
   });
 });
