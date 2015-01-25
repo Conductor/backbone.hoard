@@ -34,6 +34,27 @@ _.extend(Policy.prototype, Hoard.Events, {
     return model.toJSON();
   },
 
+  // Get the collection associated with the model
+  getCollection: function (model, options) {
+    return model.collection;
+  },
+
+  // Do two models refer to the same resource?
+  // @param model: the raw model attributes
+  // @param otherModel: the raw model attributes
+  areModelsSame: function (model, otherModel) {
+    return model.id === otherModel.id;
+  },
+
+  // Find the same resource within a collection
+  // @param collection: the raw collection array
+  // @param model: the raw model attributes
+  findSameModel: function (collection, model) {
+    return _.find(collection, function (other) {
+      return this.areModelsSame(model, other);
+    }, this);
+  },
+
   // Generate metadata
   getMetadata: function (key, response, options) {
     var meta = {};

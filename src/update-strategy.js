@@ -2,4 +2,4 @@
 
 var PositiveWriteStrategy = require('./positive-write-strategy');
 
-module.exports = PositiveWriteStrategy.extend({ _method: 'update' });
+module.exports = PositiveWriteStrategy.extend({ method: 'update' });

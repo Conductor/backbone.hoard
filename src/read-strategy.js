@@ -9,13 +9,14 @@ var Strategy = require('./strategy');
 // be it a cache hit (read from storage), or a cache miss (read from the server).
 // The remaining requests, the 'placeholder' requests', will receive the data once the live request responds.
 var Read = Strategy.extend({
+  method: 'read',
+
   initialize: function (options) {
     this.placeholders = {};
   },
 
-  execute: function (model, options) {
-    var key = this.policy.getKey(model, 'read', options);
-    options.url = this.policy.getUrl(model, 'read', options);
+  sync: function (model, options) {
+    var key = this.policy.getKey(model, this.method, options);
 
     // If a placeholder is hit, then a request has already been made for this key
     // Resolve when that request has returned
@@ -25,7 +26,7 @@ var Read = Strategy.extend({
       // If a placeholder is not found, then check the store for that key
       // If the key is found in the store, treat that as a cache hit
       // Otherwise, treat that as a cache miss
-      var executionPromise = this.store.get(key).then(
+      var executionPromise = this.get(key, options).then(
         _.bind(this.onCacheHit, this, key, model, options),
         _.bind(this.onCacheMiss, this, key, model, options)
       );
@@ -49,7 +50,7 @@ var Read = Strategy.extend({
   onCacheHit: function (key, model, options, cachedItem) {
     return this.store.getMetadata(key, options).then(_.bind(function (meta) {
       if (this.policy.shouldEvictItem(meta)) {
-        return this.store.invalidate(key).then(_.bind(function () {
+        return this.invalidate(key).then(_.bind(function () {
           return this.onCacheMiss(key, model, options);
         }, this));
       } else {
@@ -65,15 +66,23 @@ var Read = Strategy.extend({
   // On a cache miss, fetch the data using `Hoard.sync` and cache it on success/invalidate on failure.
   // Clears it's placeholder access only after storing or invalidating the response
   onCacheMiss: function (key, model, options) {
-    var callback = _.bind(this._decreasePlaceholderAccess, this, key);
+    var deferred = Hoard.defer();
+    var callback = _.bind(function (response) {
+      this._decreasePlaceholderAccess(key);
+      return deferred.resolve(response);
+    }, this);
+
     var cacheOptions = _.extend({
       onStoreSuccess: callback,
       onStoreError: callback
     }, options);
-    options.success = this._wrapSuccessWithCache('read', model, cacheOptions);
-    options.error = this._wrapErrorWithInvalidate('read', model, cacheOptions);
+    options.success = this._wrapSuccessWithCache(this.method, model, cacheOptions);
+    options.error = this._wrapErrorWithInvalidate(this.method, model, cacheOptions);
 
-    return Hoard.sync('read', model, options);
+    var syncResponse = Hoard.sync(this.method, model, options);
+    return deferred.promise.then(function () {
+      return syncResponse;
+    });
   },
 
   // On a placeholder hit, wait for the live request to go through,

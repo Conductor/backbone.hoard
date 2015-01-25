@@ -8,6 +8,8 @@ describe("Policy", function () {
     beforeEach(function () {
       this.Model = Backbone.Model.extend({url: 'url'});
       this.model = new this.Model({ id: 1, value: 1 });
+      this.collection = new Backbone.Collection();
+      this.collection.add(this.model);
       this.policy = new Policy();
     });
 
@@ -21,6 +23,21 @@ describe("Policy", function () {
 
     it("getData should return the attributes of the given model", function () {
       expect(this.policy.getData(this.model)).to.deep.eql({ id: 1, value: 1 });
+    });
+
+    it("getCollection should return the collection of the given model", function () {
+      expect(this.policy.getData(this.model)).to.deep.eql({ id: 1, value: 1 });
+    });
+
+    it("areModelsSame should return true if the raw models have the same id", function () {
+      expect(this.policy.areModelsSame({ id: 1, v: 1}, { id: 1, v: 2 })).to.be.true;
+      expect(this.policy.areModelsSame({ id: 1, v: 1}, { id: 2, v: 1 })).to.be.false;
+    });
+
+    it("findSameModel should return the model with the same id", function () {
+      var collection = [{ id: 1, v: 1 }, { id: 2, v: 2 }];
+      var model = { id: 2, v: 1 };
+      expect(this.policy.findSameModel(collection, model)).to.deep.eql({ id: 2, v: 2});
     });
   });
 
