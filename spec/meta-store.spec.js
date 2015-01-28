@@ -26,9 +26,10 @@ describe("MetaStore", function () {
     it("sets the meta for the key when the meta is empty", function () {
       this.metaStore.backend.getItem.withArgs(this.metaStore.key).returns(null);
 
-      this.metaStore.set(this.key, this.meta);
-      expect(this.metaStore.backend.setItem).to.have.been.calledOnce
-        .and.calledWith(this.metaStore.key, this.storedMetaString);
+      return this.metaStore.set(this.key, this.meta).then(function () {
+        expect(this.metaStore.backend.setItem).to.have.been.calledOnce
+          .and.calledWith(this.metaStore.key, this.storedMetaString);
+      }.bind(this));
     });
 
     it("sets the meta for the key when the meta is populated", function () {
@@ -37,9 +38,10 @@ describe("MetaStore", function () {
         .returns(JSON.stringify(alreadyStored));
       var newStoredMeta = _.extend(alreadyStored, this.storedMeta);
 
-      this.metaStore.set(this.key, this.meta);
-      expect(this.metaStore.backend.setItem).to.have.been.calledOnce
-        .and.calledWith(this.metaStore.key, JSON.stringify(newStoredMeta));
+      return this.metaStore.set(this.key, this.meta).then(function () {
+        expect(this.metaStore.backend.setItem).to.have.been.calledOnce
+          .and.calledWith(this.metaStore.key, JSON.stringify(newStoredMeta));
+      }.bind(this));
     });
   });
 
@@ -47,7 +49,7 @@ describe("MetaStore", function () {
     it("returns all metadata", function () {
       this.metaStore.backend.getItem.withArgs(this.metaStore.key)
         .returns(this.storedMetaString);
-      expect(this.metaStore.getAll()).to.eventually.eql(this.storedMeta);
+      return expect(this.metaStore.getAll()).to.eventually.eql(this.storedMeta);
     });
   });
 
@@ -55,15 +57,17 @@ describe("MetaStore", function () {
     it("replaces the metadata, without the provided key", function () {
       this.metaStore.backend.getItem.withArgs(this.metaStore.key)
         .returns(this.storedMetaString);
-      this.metaStore.invalidate(this.key);
-      expect(this.metaStore.backend.setItem).to.have.been.calledOnce
-        .and.calledWith(this.metaStore.key, JSON.stringify({}));
+      return this.metaStore.invalidate(this.key).then(function () {
+        expect(this.metaStore.backend.setItem).to.have.been.calledOnce
+          .and.calledWith(this.metaStore.key, JSON.stringify({}));
+      }.bind(this));
     });
   });
 
   describe("invalidateAll", function () {
     beforeEach(function () {
       this.result = this.metaStore.invalidateAll();
+      return this.result;
     });
 
     it("removes the metadata", function () {

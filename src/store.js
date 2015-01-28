@@ -30,7 +30,7 @@ _.extend(Store.prototype, Hoard.Events, {
     item = item || '';
     meta = meta || '';
     return Lock.withAccess('store-write', _.bind(function () {
-      var itemPromise = this._setItem(key, item);
+      var itemPromise = this.setItem(key, item);
       var metaPromise = this.metaStore.set(key, meta, options);
       return Hoard.Promise.all([itemPromise, metaPromise]);
     }, this)).then(
@@ -54,22 +54,27 @@ _.extend(Store.prototype, Hoard.Events, {
   // Retrieve an item from the cache
   // Returns a promise that resolves with the found cache item
   // or rejects if an item is not found in the cache
-  get: StoreHelpers.proxyGetItem,
+  get: function (key, options) {
+    return this.getItem.apply(this, arguments);
+  },
 
   // Remove an item and its metadata from the cache
   invalidate: function (key, options) {
-    this.backend.removeItem(key);
-    return this.metaStore.invalidate(key, options);
+    var storePromise = this.removeItem(key, options);
+    var metaPromise = this.metaStore.invalidate(key, options);
+    return Hoard.Promise.all([storePromise, metaPromise]);
   },
 
   // Remove all items listed by store metadata then remove all metadata.
-  invalidateAll: function () {
-    var dataPromise = this.getAllMetadata().then(_.bind(function (metadata) {
-      _.each(_.keys(metadata), function (key) {
-        this.backend.removeItem(key);
+  invalidateAll: function (options) {
+    var dataPromise = this.getAllMetadata(options).then(_.bind(function (metadata) {
+      var removals = _.map(_.keys(metadata), function (key) {
+        return this.removeItem(key, options);
       }, this);
+
+      return Hoard.Promise.all(removals);
     }, this));
-    var metaPromise = this.metaStore.invalidateAll();
+    var metaPromise = this.metaStore.invalidateAll(options);
     return Hoard.Promise.all([dataPromise, metaPromise]);
   },
 
@@ -83,7 +88,9 @@ _.extend(Store.prototype, Hoard.Events, {
     return this.metaStore.getAll(options);
   },
 
-  _setItem: StoreHelpers.proxySetItem
+  getItem: StoreHelpers.proxyGetItem,
+  setItem: StoreHelpers.proxySetItem,
+  removeItem: StoreHelpers.proxyRemoveItem
 });
 
 Store.extend = Hoard._proxyExtend;

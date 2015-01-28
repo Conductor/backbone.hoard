@@ -8,17 +8,22 @@ var sinonChai = require('sinon-chai');
 var chaiAsPromised = require('chai-as-promised');
 var Backbone = require('backbone');
 var Hoard = require('src/build/backbone.hoard.bundle');
+var asyncLocalStorage = require('./async-local-storage');
 
 // load specs
-require('./read.int-spec.js');
-require('./write.int-spec.js');
+var readSpecs = require('./read.int-spec.js');
+var writeSpecs = require('./write.int-spec.js');
+
+readSpecs('localStorage', localStorage);
+writeSpecs('localStorage', localStorage);
+readSpecs('asyncLocalStorage', asyncLocalStorage);
+writeSpecs('asyncLocalStorage', asyncLocalStorage);
 
 window.expect = chai.expect;
 chai.use(sinonChai);
 chai.use(chaiAsPromised);
 
 beforeEach(function () {
-  Hoard.backend.clear();
   this.server = sinon.fakeServer.create();
   this.server.autoRespond = true;
   this.sinon = sinon.sandbox.create();
@@ -36,4 +41,5 @@ beforeEach(function () {
 afterEach(function () {
   this.server.restore();
   this.sinon.restore();
+  localStorage.clear();
 });

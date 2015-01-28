@@ -22,42 +22,49 @@ _.extend(MetaStore.prototype, Hoard.Events, {
   key: 'backbone.hoard.metastore',
 
   set: function (key, meta, options) {
-    var allMetadata = this._get();
-    allMetadata[key] = meta;
-    return this._set(this.key, allMetadata);
+    return this._get(options).then(_.bind(function (allMetadata) {
+      allMetadata[key] = meta;
+      return this._set(this.key, allMetadata);
+    }, this));
   },
 
   get: function (key, options) {
-    var allMetadata = this._get();
-    var meta = allMetadata[key] || {};
-    return Hoard.Promise.resolve(meta);
+    return this._get(options).then(_.bind(function (allMetadata) {
+      return allMetadata[key] || {};
+    }, this));
   },
 
   getAll: function (options) {
-    return Hoard.Promise.resolve(this._get());
+    return this._get(options);
   },
 
   invalidate: function (key, options) {
-    var allMetadata = this._get();
-    delete allMetadata[key];
-    this._set(this.key, allMetadata);
-    return Hoard.Promise.resolve();
+    return this._get(options).then(_.bind(function (allMetadata) {
+      delete allMetadata[key];
+      return this._set(this.key, allMetadata);
+    }, this));
   },
 
-  invalidateAll: function () {
-    this.backend.removeItem(this.key);
-    return Hoard.Promise.resolve();
+  invalidateAll: function (options) {
+    return this.removeItem(this.key, options);
   },
 
-  _get: function () {
-    return JSON.parse(this.backend.getItem(this.key)) || {};
+  _get: function (options) {
+    return this.getItem(this.key, options).then(
+      _.identity,
+      function () {
+        return {};
+      }
+    );
   },
 
   _set: function (key, meta) {
-    return this._setItem(key, meta);
+    return this.setItem(key, meta);
   },
 
-  _setItem: StoreHelpers.proxySetItem
+  getItem: StoreHelpers.proxyGetItem,
+  setItem: StoreHelpers.proxySetItem,
+  removeItem: StoreHelpers.proxyRemoveItem
 });
 
 MetaStore.extend = Hoard._proxyExtend;
