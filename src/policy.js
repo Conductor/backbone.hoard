@@ -81,6 +81,6 @@ _.extend(Policy.prototype, Hoard.Events, {
   }
 });
 
-Policy.extend = Hoard.extend;
+Policy.extend = Hoard._proxyExtend;
 
 module.exports = Policy;

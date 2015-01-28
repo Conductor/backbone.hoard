@@ -211,6 +211,6 @@ _.extend(Strategy.prototype, Hoard.Events, {
   }
 });
 
-Strategy.extend = Hoard.extend;
+Strategy.extend = Hoard._proxyExtend;
 
 module.exports = Strategy;

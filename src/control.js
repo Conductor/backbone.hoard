@@ -99,6 +99,6 @@ _.extend(Control.prototype, Hoard.Events, {
   }
 });
 
-Control.extend = Hoard.extend;
+Control.extend = Hoard._proxyExtend;
 
 module.exports = Control;

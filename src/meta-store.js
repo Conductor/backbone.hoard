@@ -60,5 +60,5 @@ _.extend(MetaStore.prototype, Hoard.Events, {
   _setItem: StoreHelpers.proxySetItem
 });
 
-MetaStore.extend = Hoard.extend;
+MetaStore.extend = Hoard._proxyExtend;
 module.exports = MetaStore;
