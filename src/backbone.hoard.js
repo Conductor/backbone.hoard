@@ -2,7 +2,7 @@
 
 var Backbone = require('backbone');
 
-module.exports = {
+var Hoard = {
   Promise: function () {
     throw new TypeError('An ES6-compliant Promise implementation must be provided');
   },
@@ -13,6 +13,10 @@ module.exports = {
 
   extend: Backbone.Model.extend,
 
+  _proxyExtend: function () {
+    return Hoard.extend.apply(this, arguments);
+  },
+
   defer: function () {
     var deferred = {};
     deferred.promise = new this.Promise(function (resolve, reject) {
@@ -22,3 +26,5 @@ module.exports = {
     return deferred;
   }
 };
+
+module.exports = Hoard;

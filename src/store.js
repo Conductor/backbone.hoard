@@ -86,6 +86,6 @@ _.extend(Store.prototype, Hoard.Events, {
   _setItem: StoreHelpers.proxySetItem
 });
 
-Store.extend = Hoard.extend;
+Store.extend = Hoard._proxyExtend;
 
 module.exports = Store;
